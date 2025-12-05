@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Lunar } from 'lunar-javascript';
 
 export default function Home() {
@@ -15,6 +15,9 @@ export default function Home() {
   const [engines, setEngines] = useState([]);
   const [currentEngine, setCurrentEngine] = useState({ name: '百度', url: 'https://www.baidu.com/s?wd=' });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  // 引用 Ref 用于检测点击外部
+  const searchContainerRef = useRef(null);
 
   // --- 初始化逻辑 ---
   useEffect(() => {
@@ -26,7 +29,7 @@ export default function Home() {
       setLinks([{ name: '演示-淘宝', url: 'https://www.taobao.com' }]);
     }
 
-    // 2. 读取搜索引擎 (内置默认值)
+    // 2. 读取搜索引擎
     const envEngines = process.env.NEXT_PUBLIC_SEARCH_ENGINES;
     let loadedEngines = [
       { name: '百度', url: 'https://www.baidu.com/s?wd=' },
@@ -36,14 +39,11 @@ export default function Home() {
       { name: '360', url: 'https://www.so.com/s?q=' },
       { name: '搜狗', url: 'https://www.sogou.com/web?query=' },
     ];
-
     if (envEngines) {
       try {
-        const parsedEngines = JSON.parse(envEngines);
-        if (parsedEngines.length > 0) loadedEngines = parsedEngines;
-      } catch (e) {
-        console.error("搜索引擎配置解析失败", e);
-      }
+        const parsed = JSON.parse(envEngines);
+        if (parsed.length > 0) loadedEngines = parsed;
+      } catch (e) { console.error("搜索引擎配置解析失败", e); }
     }
     setEngines(loadedEngines);
     setCurrentEngine(loadedEngines[0]);
@@ -58,7 +58,19 @@ export default function Home() {
     };
     updateTime();
     const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
+
+    // 4. 点击外部关闭下拉菜单 (修复点击无反应的核心逻辑)
+    const handleClickOutside = (event) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   // --- 事件处理 ---
@@ -66,6 +78,11 @@ export default function Home() {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     window.location.href = `${currentEngine.url}${encodeURIComponent(searchQuery)}`;
+  };
+
+  const handleEngineSelect = (engine) => {
+    setCurrentEngine(engine);
+    setIsDropdownOpen(false);
   };
 
   return (
@@ -77,16 +94,7 @@ export default function Home() {
       </video>
       <div className="absolute top-0 left-0 w-full h-full bg-black/10 z-10 pointer-events-none" />
 
-      {/* --- 全屏透明遮罩 (仅在菜单打开时显示，用于点击空白处关闭菜单) --- */}
-      {isDropdownOpen && (
-        <div 
-          className="fixed inset-0 z-40 cursor-default"
-          onClick={() => setIsDropdownOpen(false)} 
-        />
-      )}
-
-      {/* 主体内容 */}
-      {/* 修改点：这里使用了 pt-44 (176px)，如果你觉得不够低，可以改用自定义写法 pt-[200px] */}
+      {/* 主体内容 (pt-44 约等于 176px，保证位置适中) */}
       <div className="relative z-20 flex flex-col items-center pt-44 h-full w-full px-4">
         
         {/* 时钟 */}
@@ -98,38 +106,41 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 搜索框容器 */}
-        {/* 注意：z-50 确保它在遮罩层之上 */}
-        <form onSubmit={handleSearch} className="w-full max-w-xl relative z-50">
+        {/* 搜索框容器 (Ref 绑定在这里) */}
+        <form 
+          ref={searchContainerRef}
+          onSubmit={handleSearch} 
+          className="w-full max-w-xl relative z-50"
+        >
           <div className="relative flex items-center bg-white/90 backdrop-blur-sm rounded-full h-12 px-2 shadow-lg transition-all duration-300 hover:bg-white">
             
-            {/* 搜索引擎选择器按钮 */}
-            <div 
-              className="pl-4 pr-3 flex items-center gap-1 cursor-pointer border-r border-gray-300/50 h-3/5 hover:opacity-70 transition-opacity"
+            {/* 搜索引擎选择按钮 */}
+            <button
+              type="button" 
+              className="pl-4 pr-3 flex items-center gap-1 cursor-pointer border-r border-gray-300/50 h-3/5 hover:opacity-70 transition-opacity focus:outline-none"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             >
               <span className="text-gray-600 text-sm font-bold select-none whitespace-nowrap min-w-[3em] text-center">
                 {currentEngine.name}
               </span>
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 text-gray-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 text-gray-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-            </div>
+            </button>
 
-            {/* 下拉菜单 */}
+            {/* 下拉菜单 (风格与底部导航一致) */}
             {isDropdownOpen && (
-              <div className="absolute top-14 left-0 w-36 bg-white/95 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden py-2 z-50">
+              <div className="absolute top-14 left-0 w-36 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl overflow-hidden p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                 {engines.map((engine, index) => (
                   <div
                     key={index}
-                    onClick={() => {
-                      setCurrentEngine(engine);
-                      setIsDropdownOpen(false);
-                    }}
+                    onClick={() => handleEngineSelect(engine)}
                     className={`
-                      px-4 py-2.5 text-sm text-gray-700 cursor-pointer transition-colors font-medium
-                      hover:bg-blue-500 hover:text-white
-                      ${currentEngine.name === engine.name ? 'text-blue-600 bg-blue-50' : ''}
+                      px-4 py-2 text-sm text-gray-700 cursor-pointer font-medium rounded-lg
+                      transition-all duration-200
+                      /* 这里模仿底部导航的悬停效果：背景微透变化 */
+                      hover:bg-black/5 hover:scale-105 hover:text-black
+                      ${currentEngine.name === engine.name ? 'bg-black/10 text-black font-bold' : ''}
                     `}
                   >
                     {engine.name}
