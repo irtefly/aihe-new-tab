@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Lunar } from 'lunar-javascript';
 
 export default function Home() {
@@ -11,14 +11,14 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [links, setLinks] = useState([]);
   
-  // 搜索引擎相关状态
+  // 搜索引擎状态
   const [engines, setEngines] = useState([]);
   const [currentEngine, setCurrentEngine] = useState({ name: '百度', url: 'https://www.baidu.com/s?wd=' });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // --- 初始化逻辑 ---
   useEffect(() => {
-    // 1. 读取导航链接 (NEXT_PUBLIC_NAV_LINKS)
+    // 1. 读取导航链接
     const envLinks = process.env.NEXT_PUBLIC_NAV_LINKS;
     if (envLinks) {
       try { setLinks(JSON.parse(envLinks)); } catch (e) { console.error("导航链接解析失败", e); }
@@ -26,7 +26,7 @@ export default function Home() {
       setLinks([{ name: '演示-淘宝', url: 'https://www.taobao.com' }]);
     }
 
-    // 2. 读取搜索引擎 (NEXT_PUBLIC_SEARCH_ENGINES)
+    // 2. 读取搜索引擎 (内置默认值)
     const envEngines = process.env.NEXT_PUBLIC_SEARCH_ENGINES;
     let loadedEngines = [
       { name: '百度', url: 'https://www.baidu.com/s?wd=' },
@@ -40,17 +40,15 @@ export default function Home() {
     if (envEngines) {
       try {
         const parsedEngines = JSON.parse(envEngines);
-        if (parsedEngines.length > 0) {
-          loadedEngines = parsedEngines;
-        }
+        if (parsedEngines.length > 0) loadedEngines = parsedEngines;
       } catch (e) {
         console.error("搜索引擎配置解析失败", e);
       }
     }
     setEngines(loadedEngines);
-    setCurrentEngine(loadedEngines[0]); // 默认选中第一个
+    setCurrentEngine(loadedEngines[0]);
 
-    // 3. 时间更新逻辑
+    // 3. 时间更新
     const updateTime = () => {
       const now = new Date();
       setTime(now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
@@ -60,32 +58,14 @@ export default function Home() {
     };
     updateTime();
     const timer = setInterval(updateTime, 1000);
-    
-    // 点击页面其他地方关闭下拉菜单
-    const closeDropdown = () => setIsDropdownOpen(false);
-    document.addEventListener('click', closeDropdown);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('click', closeDropdown);
-    };
+    return () => clearInterval(timer);
   }, []);
 
   // --- 事件处理 ---
   const handleSearch = (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    // 使用当前选中的引擎 URL 前缀拼接搜索词
     window.location.href = `${currentEngine.url}${encodeURIComponent(searchQuery)}`;
-  };
-
-  const toggleDropdown = (e) => {
-    e.stopPropagation(); // 阻止冒泡，防止触发 document 的关闭事件
-    setIsDropdownOpen(!isDropdownOpen);
-  };
-
-  const selectEngine = (engine) => {
-    setCurrentEngine(engine);
-    setIsDropdownOpen(false);
   };
 
   return (
@@ -97,8 +77,17 @@ export default function Home() {
       </video>
       <div className="absolute top-0 left-0 w-full h-full bg-black/10 z-10 pointer-events-none" />
 
+      {/* --- 全屏透明遮罩 (仅在菜单打开时显示，用于点击空白处关闭菜单) --- */}
+      {isDropdownOpen && (
+        <div 
+          className="fixed inset-0 z-40 cursor-default"
+          onClick={() => setIsDropdownOpen(false)} 
+        />
+      )}
+
       {/* 主体内容 */}
-      <div className="relative z-20 flex flex-col items-center pt-42 h-full w-full px-4">
+      {/* 修改点：这里使用了 pt-44 (176px)，如果你觉得不够低，可以改用自定义写法 pt-[200px] */}
+      <div className="relative z-20 flex flex-col items-center pt-44 h-full w-full px-4">
         
         {/* 时钟 */}
         <div className="flex items-end gap-3 mb-8 drop-shadow-md select-none">
@@ -110,34 +99,37 @@ export default function Home() {
         </div>
 
         {/* 搜索框容器 */}
-        <form onSubmit={handleSearch} className="w-full max-w-xl relative group z-50">
-          <div className="relative flex items-center bg-white/90 backdrop-blur-sm rounded-full h-12 px-2 shadow-lg transition-all duration-300 group-hover:bg-white">
+        {/* 注意：z-50 确保它在遮罩层之上 */}
+        <form onSubmit={handleSearch} className="w-full max-w-xl relative z-50">
+          <div className="relative flex items-center bg-white/90 backdrop-blur-sm rounded-full h-12 px-2 shadow-lg transition-all duration-300 hover:bg-white">
             
-            {/* 搜索引擎选择器 */}
+            {/* 搜索引擎选择器按钮 */}
             <div 
-              className="pl-4 pr-3 flex items-center gap-1 cursor-pointer border-r border-gray-300/50 h-3/5"
-              onClick={toggleDropdown}
+              className="pl-4 pr-3 flex items-center gap-1 cursor-pointer border-r border-gray-300/50 h-3/5 hover:opacity-70 transition-opacity"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             >
               <span className="text-gray-600 text-sm font-bold select-none whitespace-nowrap min-w-[3em] text-center">
                 {currentEngine.name}
               </span>
-              {/* 小箭头图标 */}
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 text-gray-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
 
-            {/* 下拉菜单 (绝对定位) */}
+            {/* 下拉菜单 */}
             {isDropdownOpen && (
-              <div className="absolute top-14 left-0 w-32 bg-white/95 backdrop-blur-md rounded-xl shadow-xl overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute top-14 left-0 w-36 bg-white/95 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden py-2 z-50">
                 {engines.map((engine, index) => (
                   <div
                     key={index}
-                    onClick={() => selectEngine(engine)}
+                    onClick={() => {
+                      setCurrentEngine(engine);
+                      setIsDropdownOpen(false);
+                    }}
                     className={`
-                      px-4 py-2 text-sm text-gray-700 cursor-pointer transition-colors
+                      px-4 py-2.5 text-sm text-gray-700 cursor-pointer transition-colors font-medium
                       hover:bg-blue-500 hover:text-white
-                      ${currentEngine.name === engine.name ? 'bg-blue-50 text-blue-600 font-bold' : ''}
+                      ${currentEngine.name === engine.name ? 'text-blue-600 bg-blue-50' : ''}
                     `}
                   >
                     {engine.name}
@@ -181,7 +173,7 @@ export default function Home() {
               className="
                 text-sm sm:text-base font-medium text-white/90 tracking-wider 
                 px-4 py-2 rounded-full transition-all duration-200
-                hover:bg-white/15 hover:text-white hover:backdrop-blur-sm
+                hover:bg-white/20 hover:text-white hover:backdrop-blur-sm
               "
             >
               {link.name}
