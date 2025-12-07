@@ -90,7 +90,7 @@
 
 ## 📦 技术栈
 
-- [Next.js 14](https://nextjs.org/) (Static Export)
+- [Next.js 15](https://nextjs.org/) (Static Export)
 - [Cloudflare Pages](https://pages.cloudflare.com/)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [Lunar-javascript](https://github.com/6tail/lunar-javascript)
